@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vaultora Prototype</title>
+</head>
+<body>
+    <h1>Vaultora – Secure File Transfer & Storage</h1>
+
+    <h3>Upload File</h3>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="file">
+        <button type="submit">Upload</button>
+    </form>
+
+    <h3>Available Files</h3>
+    <ul>
+        {% for f in files %}
+        <li><a href="/download/{{f}}">{{f}}</a></li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

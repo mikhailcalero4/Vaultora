@@ -131,7 +131,7 @@ python app.py
 
 Visit `http://127.0.0.1:5000`
 
-Default login: `admin` / whatever you set as `ADMIN_PASS` in `.env`
+Default login: `admin` / the password: `yourpassword` 
 
 ---
 

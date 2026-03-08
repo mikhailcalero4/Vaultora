@@ -243,9 +243,3 @@ Live compliance dashboard at `/admin/compliance`.
 See [`/.well-known/security.txt`](http://127.0.0.1:8000/.well-known/security.txt)
 
 ---
-
-## 👥 Team
-
-Built by FIU KFSCIS Capstone II — 2025/2026
-Florida International University
-Instructor: Prof. Masoud Sadjadi

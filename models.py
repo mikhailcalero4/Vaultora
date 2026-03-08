@@ -93,3 +93,23 @@ class FileVersion(db.Model):
     def __init__(self, original_filename: str, versioned_filename: str):
         self.original_filename = original_filename
         self.versioned_filename = versioned_filename
+        
+class Metric(db.Model):
+    __tablename__ = "metrics"
+    id = db.Column(db.Integer, primary_key=True)
+    event = db.Column(db.String(50), nullable=False)
+    filename = db.Column(db.String(256), nullable=True)
+    file_size_kb = db.Column(db.Float, nullable=True)
+    duration_ms = db.Column(db.Float, nullable=True)
+    passed = db.Column(db.Boolean, nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __init__(self, event: str, filename: str | None = None,
+                 file_size_kb: float | None = None,
+                 duration_ms: float | None = None,
+                 passed: bool | None = None):
+        self.event = event
+        self.filename = filename
+        self.file_size_kb = file_size_kb
+        self.duration_ms = duration_ms
+        self.passed = passed

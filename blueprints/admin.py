@@ -125,3 +125,36 @@ def siem_export() -> Any:
         mimetype="text/plain",
         headers={"Content-Disposition": "attachment; filename=vaultora_siem_export.cef"}
     )
+    
+@admin_bp.route("/metrics")
+@login_required
+@role_required("admin")
+def metrics_dashboard() -> Any:
+    from models import Metric
+    all_metrics = Metric.query.order_by(Metric.timestamp.desc()).all()
+
+    encrypt_times = [m.duration_ms for m in all_metrics
+                     if m.event == "encrypt" and m.duration_ms]
+    decrypt_times = [m.duration_ms for m in all_metrics
+                     if m.event == "decrypt_integrity" and m.duration_ms]
+    integrity_checks = [m for m in all_metrics if m.event == "decrypt_integrity"]
+    integrity_pass_rate = (
+        round(sum(1 for m in integrity_checks if m.passed) /
+              len(integrity_checks) * 100, 1)
+        if integrity_checks else 100.0
+    )
+
+    summary = {
+        "avg_encrypt_ms": round(sum(encrypt_times) / len(encrypt_times), 2)
+                          if encrypt_times else 0,
+        "avg_decrypt_ms": round(sum(decrypt_times) / len(decrypt_times), 2)
+                          if decrypt_times else 0,
+        "max_encrypt_ms": round(max(encrypt_times), 2) if encrypt_times else 0,
+        "min_encrypt_ms": round(min(encrypt_times), 2) if encrypt_times else 0,
+        "total_uploads": len(encrypt_times),
+        "total_downloads": len(decrypt_times),
+        "integrity_pass_rate": integrity_pass_rate,
+        "total_integrity_checks": len(integrity_checks),
+    }
+
+    return render_template("metrics.html", summary=summary, metrics=all_metrics)

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Vaultora — Performance Metrics{% endblock %}
+{% block content %}
+
+<h3 class="mb-4">📊 Performance Metrics</h3>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <div class="text-muted small mb-1">AVG ENCRYPTION</div>
+            <h3 class="fw-bold text-primary mb-0">{{ summary.avg_encrypt_ms }}ms</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <div class="text-muted small mb-1">AVG DECRYPTION</div>
+            <h3 class="fw-bold text-success mb-0">{{ summary.avg_decrypt_ms }}ms</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <div class="text-muted small mb-1">INTEGRITY PASS RATE</div>
+            <h3 class="fw-bold text-warning mb-0">{{ summary.integrity_pass_rate }}%</h3>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <div class="text-muted small mb-1">TOTAL OPERATIONS</div>
+            <h3 class="fw-bold text-info mb-0">
+                {{ summary.total_uploads + summary.total_downloads }}
+            </h3>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Stats -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card p-4">
+            <h5 class="mb-3">🔒 Encryption Stats</h5>
+            <table class="table table-sm">
+                <tr><td>Total Uploads</td>
+                    <td class="fw-bold">{{ summary.total_uploads }}</td></tr>
+                <tr><td>Average Time</td>
+                    <td class="fw-bold">{{ summary.avg_encrypt_ms }}ms</td></tr>
+                <tr><td>Fastest</td>
+                    <td class="fw-bold text-success">{{ summary.min_encrypt_ms }}ms</td></tr>
+                <tr><td>Slowest</td>
+                    <td class="fw-bold text-danger">{{ summary.max_encrypt_ms }}ms</td></tr>
+            </table>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card p-4">
+            <h5 class="mb-3">✅ Integrity Stats</h5>
+            <table class="table table-sm">
+                <tr><td>Total Checks</td>
+                    <td class="fw-bold">{{ summary.total_integrity_checks }}</td></tr>
+                <tr><td>Pass Rate</td>
+                    <td class="fw-bold text-success">
+                        {{ summary.integrity_pass_rate }}%</td></tr>
+                <tr><td>Total Downloads</td>
+                    <td class="fw-bold">{{ summary.total_downloads }}</td></tr>
+                <tr><td>Avg Decrypt+Verify</td>
+                    <td class="fw-bold">{{ summary.avg_decrypt_ms }}ms</td></tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Operations Log -->
+<div class="card p-4">
+    <h5 class="mb-3">🕓 Recent Operations</h5>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>Event</th>
+                    <th>File</th>
+                    <th>Size (KB)</th>
+                    <th>Duration (ms)</th>
+                    <th>Integrity</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for m in metrics[:50] %}
+            <tr>
+                <td>
+                    {% if m.event == "encrypt" %}
+                        <span class="badge bg-primary">encrypt</span>
+                    {% else %}
+                        <span class="badge bg-success">decrypt</span>
+                    {% endif %}
+                </td>
+                <td>{{ m.filename or '—' }}</td>
+                <td>{{ m.file_size_kb or '—' }}</td>
+                <td>{{ m.duration_ms }}</td>
+                <td>
+                    {% if m.passed is none %}
+                        <span class="badge bg-secondary">N/A</span>
+                    {% elif m.passed %}
+                        <span class="badge bg-success">✓ Passed</span>
+                    {% else %}
+                        <span class="badge bg-danger">✗ Failed</span>
+                    {% endif %}
+                </td>
+                <td class="text-muted small">
+                    {{ m.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

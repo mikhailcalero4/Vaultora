@@ -3,18 +3,19 @@ import hashlib
 import shutil
 import tempfile
 import time
+import base64
 from datetime import datetime
 from flask import (Blueprint, request, session, jsonify,
-                   send_file, current_app, Response)
+                   send_file, current_app)
 from werkzeug.utils import secure_filename
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 from typing import Any
 from extensions import db
-from models import File, FileVersion
+from models import File, FileVersion, Metric
 from blueprints.auth import login_required, log_action
 
-# Blueprint MUST be defined before any @files_bp.route decorators
+
 files_bp = Blueprint("files", __name__)
 
 KEY_FILE = os.environ.get("KEY_FILE_PATH", "secret.key")
@@ -23,10 +24,7 @@ ALLOWED_EXTENSIONS = {"txt", "pdf", "png", "jpg", "jpeg", "gif", "docx", "xlsx"}
 
 # ── Encryption ────────────────────────────────────────────────────────────────
 
-import base64
-
 def load_key() -> bytes:
-    # Prefer env var (more secure), fall back to file
     env_key = os.environ.get("AES_KEY_B64")
     if env_key:
         return base64.b64decode(env_key)
@@ -37,6 +35,7 @@ def load_key() -> bytes:
     with open(KEY_FILE, "wb") as f:
         f.write(key)
     return key
+
 
 SECRET_KEY: bytes = load_key()
 
@@ -68,7 +67,10 @@ def get_safe_filename(file: Any) -> str | None:
 
 
 def allowed_file(filename: str) -> bool:
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+    )
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -88,6 +90,13 @@ def upload() -> Any:
         return jsonify({"message": "File type not allowed"}), 400
 
     file_data = file.read()
+    file_size_kb = round(len(file_data) / 1024, 2)
+
+    # Measure encryption time
+    enc_start = time.time()
+    encrypted = encrypt_file(file_data)
+    enc_elapsed = round((time.time() - enc_start) * 1000, 2)
+
     file_hash = compute_hash(file_data)
 
     upload_folder: str = current_app.config["UPLOAD_FOLDER"]
@@ -97,20 +106,22 @@ def upload() -> Any:
     if os.path.exists(existing_path):
         ts = datetime.now().strftime("%Y%m%d%H%M%S")
         versioned_name = f"{filename}.{ts}"
-        shutil.copyfile(existing_path, os.path.join(versions_folder, versioned_name))
-        version_entry = FileVersion(
+        shutil.copyfile(
+            existing_path,
+            os.path.join(versions_folder, versioned_name)
+        )
+        db.session.add(FileVersion(
             original_filename=filename,
             versioned_filename=versioned_name
-        )
-        db.session.add(version_entry)
+        ))
 
-    encrypted = encrypt_file(file_data)
     with open(existing_path, "wb") as f:
         f.write(encrypted)
 
     retention_days = int(request.form.get("retention_days", 0))
     expiry_at: int | None = (
-        int(time.time()) + retention_days * 86400 if retention_days > 0 else None
+        int(time.time()) + retention_days * 86400
+        if retention_days > 0 else None
     )
 
     db_file = File.query.filter_by(
@@ -130,16 +141,34 @@ def upload() -> Any:
         )
         db.session.add(db_file)
 
+    # Save encryption metric to DB
+    db.session.add(Metric(
+        event="encrypt",
+        filename=filename,
+        file_size_kb=file_size_kb,
+        duration_ms=enc_elapsed,
+        passed=True
+    ))
+
     db.session.commit()
     log_action(session["user"], "upload", filename)
-    return jsonify({"message": f"'{filename}' uploaded and encrypted successfully."})
+
+    return jsonify({
+        "message": f"'{filename}' uploaded and encrypted successfully.",
+        "metrics": {
+            "file_size_kb": file_size_kb,
+            "encryption_ms": enc_elapsed
+        }
+    })
 
 
 @files_bp.route("/download/<filename>")
 @login_required
 def download(filename: str) -> Any:
     safe_name = secure_filename(filename)
-    filepath = os.path.join(current_app.config["UPLOAD_FOLDER"], safe_name + ".enc")
+    filepath = os.path.join(
+        current_app.config["UPLOAD_FOLDER"], safe_name + ".enc"
+    )
 
     if not os.path.exists(filepath):
         return jsonify({"message": "File not found"}), 404
@@ -147,15 +176,34 @@ def download(filename: str) -> Any:
     with open(filepath, "rb") as f:
         encrypted = f.read()
 
+    # Measure decryption time
+    dec_start = time.time()
+    decrypted = decrypt_file(encrypted)
+    dec_elapsed = round((time.time() - dec_start) * 1000, 2)
+
+    # Measure integrity check time
+    integrity_start = time.time()
     db_file = File.query.filter_by(
         filename=safe_name, owner=session["user"]
     ).first()
-    decrypted = decrypt_file(encrypted)
 
+    integrity_passed = True
     if db_file and db_file.sha256_hash:
         if compute_hash(decrypted) != db_file.sha256_hash:
             log_action(session["user"], "integrity_failure", safe_name)
             return jsonify({"message": "File integrity check failed!"}), 500
+
+    integrity_elapsed = round((time.time() - integrity_start) * 1000, 2)
+    total_elapsed = round(dec_elapsed + integrity_elapsed, 2)
+
+    # Save decryption + integrity metric to DB
+    db.session.add(Metric(
+        event="decrypt_integrity",
+        filename=safe_name,
+        duration_ms=total_elapsed,
+        passed=integrity_passed
+    ))
+    db.session.commit()
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix="_" + safe_name)
     try:

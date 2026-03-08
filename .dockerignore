@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.db
+uploads/
+versions/
+backups/
+sensitive_files/
+.env
+secret.key
+*.cef
+.git/

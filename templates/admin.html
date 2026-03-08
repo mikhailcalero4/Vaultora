@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Vaultora - Admin Dashboard{% endblock %}
+{% block content %}
+<h3 class="mb-4">🛡️ Admin Dashboard</h3>
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card p-3 text-center">
+            <h2>{{ users | length }}</h2><p class="text-muted">Total Users</p>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3 text-center">
+            <h2>{{ files | length }}</h2><p class="text-muted">Total Files</p>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3 text-center">
+            <h2>{{ logs | length }}</h2><p class="text-muted">Recent Events</p>
+        </div>
+    </div>
+</div>
+
+<div class="card p-4 mb-4">
+    <h5>🔑 Key Rotation</h5>
+    <form action="/rotate_keys" method="POST">
+        <button class="btn btn-warning"
+                onclick="return confirm('Rotate encryption key? All files will be re-encrypted.')">
+            Rotate Keys
+        </button>
+    </form>
+</div>
+
+<div class="card p-4 mb-4">
+    <h5>📡 SIEM Export</h5>
+    <p class="text-muted small mb-2">
+        Download all audit logs in CEF format for ingestion into Splunk, QRadar, or any SIEM.
+    </p>
+    <a href="/admin/siem_export" class="btn btn-outline-dark">
+        ⬇ Export Audit Log (CEF)
+    </a>
+</div>
+
+<div class="card p-4">
+    <h5>📋 Recent Audit Log</h5>
+    <table class="table table-sm table-hover">
+        <thead><tr>
+            <th>User</th><th>Action</th><th>File</th><th>IP</th><th>Time</th>
+        </tr></thead>
+        <tbody>
+        {% for log in logs %}
+        <tr>
+            <td>{{ log.username }}</td>
+            <td>{{ log.action }}</td>
+            <td>{{ log.filename or '—' }}</td>
+            <td>{{ log.ip }}</td>
+            <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
